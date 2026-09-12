@@ -357,6 +357,13 @@ class SpotifyController:
         if auth.startswith("Bearer "):
             self._access_token = auth
 
+    def _ad_blocker(self, route):
+        url = route.request.url.lower()
+        if "/ads/" in url or "ad-logic" in url or "ads-api" in url or "doubleclick.net" in url:
+            route.abort()
+        else:
+            route.continue_()
+
     def launch(self) -> None:
         log.info("Launching browser …")
         BROWSER_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -385,6 +392,7 @@ class SpotifyController:
             ignore_default_args=["--enable-automation"],
         )
         self._page = self._ctx.new_page()
+        self._page.route("**/*", self._ad_blocker)
         
         sp_dc = get_config("spotify_sp_dc")
         if sp_dc:
@@ -496,14 +504,16 @@ class SpotifyController:
     def _get_token(self) -> Optional[str]:
         if self._access_token:
             return self._access_token
-        try:
-            # Force fetch token natively via the browser's own authenticated session
-            token = self._page.evaluate("() => fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player').then(r => r.json()).then(j => j.accessToken)")
-            if token:
-                self._access_token = f"Bearer {token}"
-                return self._access_token
-        except Exception as e:
-            log.debug("Token fetch error: %s", e)
+        # Retry loop to avoid race condition on startup
+        for _ in range(3):
+            try:
+                token = self._page.evaluate("() => fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player').then(r => r.json()).then(j => j.accessToken)")
+                if token:
+                    self._access_token = f"Bearer {token}"
+                    return self._access_token
+            except Exception:
+                pass
+            time.sleep(1)
         return None
 
     def _api_search(self, query: str) -> Optional[str]:
@@ -532,8 +542,8 @@ class SpotifyController:
         log.info("Searching: %s", query)
 
         track_uri = None
-        if self._access_token:
-            # Fuzzy fallback search: Try exact first, then just track name
+        token = self._get_token()
+        if token:
             track_uri = self._api_search(f"{track} {artist}")
             if not track_uri:
                 track_uri = self._api_search(track)
@@ -541,7 +551,6 @@ class SpotifyController:
         if track_uri and track_uri.startswith("spotify:track:"):
             track_id = track_uri.split(":")[-1]
             try:
-                # Direct track page navigation
                 self._page.goto(f"{self.URL}/track/{track_id}", wait_until="domcontentloaded", timeout=30_000)
                 time.sleep(3)
                 
@@ -550,8 +559,8 @@ class SpotifyController:
                 except:
                     pass
 
-                # Strictly target the action bar play button (the big green one on the track page)
-                btn = self._page.locator('[data-testid="action-bar-row"] [data-testid="play-button"]').first
+                # Strictly target the play button inside the main view to avoid the bottom bar
+                btn = self._page.locator('main button[data-testid="play-button"], main button[aria-label*="Play"]').first
                 btn.scroll_into_view_if_needed(timeout=5_000)
                 btn.evaluate("node => node.click()")
                 
@@ -567,7 +576,6 @@ class SpotifyController:
                 log.warning("Failed track page play: %s", exc)
 
         # -- Local File Stream Fallback Injection --
-        token = self._get_token()
         if not track_uri and token:
             log.info("Song not found on Spotify. Faking a local file stream via API injection...")
             safe_artist = urllib.parse.quote(artist.replace(":", ""))
@@ -577,6 +585,18 @@ class SpotifyController:
             try:
                 dev_req = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": token}, timeout=5)
                 devices = dev_req.json().get("devices", [])
+                
+                # If Web Player isn't active yet, force it to wake up by clicking the global play button briefly
+                if not devices:
+                    log.info("Waking up Web Player device...")
+                    try:
+                        self._page.locator('[data-testid="control-button-playpause"]').first.evaluate("node => node.click()")
+                        time.sleep(2)
+                        dev_req = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": token}, timeout=5)
+                        devices = dev_req.json().get("devices", [])
+                    except:
+                        pass
+
                 active_id = next((d.get("id") for d in devices if d.get("is_active")), devices[0].get("id") if devices else None)
 
                 if active_id:
@@ -602,8 +622,8 @@ class SpotifyController:
                 timeout=30_000,
             )
             time.sleep(3)
-            # Strictly target the play button inside the top result card
-            btn = self._page.locator('[data-testid="top-result-card"] [data-testid="play-button"]').first
+            # Find the first play button inside the main search results view
+            btn = self._page.locator('main button[data-testid="play-button"], main button[aria-label*="Play"]').first
             btn.scroll_into_view_if_needed(timeout=8_000)
             btn.evaluate("node => node.click()")
             
