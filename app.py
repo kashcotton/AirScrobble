@@ -94,6 +94,7 @@ _ENV_MAP = {
     "lastfm_username": "LASTFM_USERNAME",
     "spotify_email": "SPOTIFY_EMAIL",
     "spotify_password": "SPOTIFY_PASSWORD",
+    "spotify_sp_dc": "SPOTIFY_SP_DC",
     "poll_interval": "POLL_INTERVAL_SECONDS",
 }
 
@@ -131,9 +132,9 @@ def get_all_config() -> dict:
 
 def is_configured() -> bool:
     c = get_all_config()
-    return all(
-        c[k] for k in ("lastfm_api_key", "lastfm_username", "spotify_email", "spotify_password")
-    )
+    has_lastfm = bool(c.get("lastfm_api_key") and c.get("lastfm_username"))
+    has_spotify = bool(c.get("spotify_sp_dc") or (c.get("spotify_email") and c.get("spotify_password")))
+    return has_lastfm and has_spotify
 
 
 # ── Status helpers ────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ def api_status():
 @login_required
 def api_save_settings():
     data = request.json or {}
-    for key in ("lastfm_api_key", "lastfm_username", "spotify_email", "poll_interval"):
+    for key in ("lastfm_api_key", "lastfm_username", "spotify_email", "spotify_sp_dc", "poll_interval"):
         if key in data:
             set_config(key, str(data[key]).strip())
     # Only overwrite password if a new one was actually provided
@@ -383,6 +384,19 @@ class SpotifyController:
             ignore_default_args=["--enable-automation"],
         )
         self._page = self._ctx.new_page()
+        
+        sp_dc = get_config("spotify_sp_dc")
+        if sp_dc:
+            self._ctx.add_cookies([{
+                "name": "sp_dc",
+                "value": sp_dc,
+                "domain": ".spotify.com",
+                "path": "/",
+                "secure": True,
+                "httpOnly": True
+            }])
+            log.info("Injected SP_DC authentication cookie.")
+
         self._page.on("request", self._intercept_request)
         self._page.goto(self.URL, wait_until="domcontentloaded", timeout=60_000)
         time.sleep(3)

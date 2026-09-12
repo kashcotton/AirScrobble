@@ -54,6 +54,14 @@
                class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
                       placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
       </div>
+      <div>
+        <label class="block text-[12px] text-zinc-500 mb-1.5">SP_DC Cookie (Bypasses Login)</label>
+        <input type="password" name="spotify_sp_dc" value="{{ config.spotify_sp_dc }}"
+               placeholder="Optional: Paste your sp_dc cookie to bypass login issues" spellcheck="false"
+               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
+                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+        <p class="text-[10px] text-zinc-500 mt-1">If Spotify blocks the bot login, paste your <b>sp_dc</b> cookie value here. (F12 -> Application -> Cookies -> open.spotify.com)</p>
+      </div>
     </div>
   </section>
 
