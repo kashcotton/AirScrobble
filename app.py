@@ -493,13 +493,27 @@ class SpotifyController:
             
         log.info("Login successful.")
 
+    def _get_token(self) -> Optional[str]:
+        if self._access_token:
+            return self._access_token
+        try:
+            # Force fetch token natively via the browser's own authenticated session
+            token = self._page.evaluate("() => fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player').then(r => r.json()).then(j => j.accessToken)")
+            if token:
+                self._access_token = f"Bearer {token}"
+                return self._access_token
+        except Exception as e:
+            log.debug("Token fetch error: %s", e)
+        return None
+
     def _api_search(self, query: str) -> Optional[str]:
-        if not self._access_token:
+        token = self._get_token()
+        if not token:
             return None
         try:
             r = requests.get(
                 "https://api.spotify.com/v1/search",
-                headers={"Authorization": self._access_token},
+                headers={"Authorization": token},
                 params={"q": query, "type": "track", "limit": 1},
                 timeout=5
             )
@@ -527,18 +541,17 @@ class SpotifyController:
         if track_uri and track_uri.startswith("spotify:track:"):
             track_id = track_uri.split(":")[-1]
             try:
-                # Direct track page navigation completely bypasses all UI search issues!
+                # Direct track page navigation
                 self._page.goto(f"{self.URL}/track/{track_id}", wait_until="domcontentloaded", timeout=30_000)
                 time.sleep(3)
                 
-                # Accept cookie overlay if present
                 try:
                     self._page.locator('#onetrust-accept-btn-handler').click(timeout=1000)
                 except:
                     pass
 
-                # Grab the main track play button
-                btn = self._page.locator('button[data-testid="play-button"], button[data-testid="action-bar-play-button"]').first
+                # Strictly target the action bar play button (the big green one on the track page)
+                btn = self._page.locator('[data-testid="action-bar-row"] [data-testid="play-button"]').first
                 btn.scroll_into_view_if_needed(timeout=5_000)
                 btn.evaluate("node => node.click()")
                 
@@ -554,30 +567,22 @@ class SpotifyController:
                 log.warning("Failed track page play: %s", exc)
 
         # -- Local File Stream Fallback Injection --
-        if not track_uri and self._access_token:
+        token = self._get_token()
+        if not track_uri and token:
             log.info("Song not found on Spotify. Faking a local file stream via API injection...")
             safe_artist = urllib.parse.quote(artist.replace(":", ""))
             safe_track = urllib.parse.quote(track.replace(":", ""))
-            # Construct standard Spotify URI for local file stream representation
             local_uri = f"spotify:local:{safe_artist}:unknown:{safe_track}:180000"
             
             try:
-                # Find the active Web Player session device
-                dev_req = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": self._access_token}, timeout=5)
+                dev_req = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": token}, timeout=5)
                 devices = dev_req.json().get("devices", [])
-                active_id = None
-                for d in devices:
-                    if d.get("is_active"):
-                        active_id = d.get("id")
-                        break
-                if not active_id and devices:
-                    active_id = devices[0].get("id")
+                active_id = next((d.get("id") for d in devices if d.get("is_active")), devices[0].get("id") if devices else None)
 
                 if active_id:
-                    # Push the custom local track directly to the Spotify connect endpoint
                     requests.put(
                         "https://api.spotify.com/v1/me/player/play",
-                        headers={"Authorization": self._access_token},
+                        headers={"Authorization": token},
                         params={"device_id": active_id},
                         json={"uris": [local_uri]},
                         timeout=5
@@ -597,12 +602,8 @@ class SpotifyController:
                 timeout=30_000,
             )
             time.sleep(3)
-            btn = self._page.locator(
-                'button[data-testid="play-button"], '
-                'div[data-testid="top-result-card"] button[aria-label*="Play"], '
-                'div[data-testid="tracklist-row"] button, '
-                'button[aria-label*="Play"]'
-            ).first
+            # Strictly target the play button inside the top result card
+            btn = self._page.locator('[data-testid="top-result-card"] [data-testid="play-button"]').first
             btn.scroll_into_view_if_needed(timeout=8_000)
             btn.evaluate("node => node.click()")
             
@@ -676,11 +677,13 @@ def relay_loop() -> None:
             db_set_status("idle")
             backoff = 5
             last_np: Optional[NowPlayingTrack] = None
+            idle_count = 0
 
             while not _restart_event.is_set():
                 np = lastfm_now_playing(api_key, username)
 
                 if np:
+                    idle_count = 0
                     if (
                         not last_np
                         or np.track != last_np.track
@@ -696,7 +699,8 @@ def relay_loop() -> None:
                         spotify.search_and_play(np.track, np.artist)
                         last_np = np
                 else:
-                    if last_np:
+                    idle_count += 1
+                    if last_np and idle_count >= 3:
                         spotify.pause()
                         last_np = None
                         db_set_status("idle")
