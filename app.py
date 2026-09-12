@@ -402,11 +402,12 @@ class SpotifyController:
 
     def _is_logged_in(self) -> bool:
         try:
-            return self._page.locator(
-                'a[href="/search"], button[aria-label="Search"]'
-            ).first.is_visible(timeout=5_000)
+            # If the "Log in" button is visible, we are definitively not logged in.
+            if self._page.locator('[data-testid="login-button"]').first.is_visible(timeout=5_000):
+                return False
+            return True
         except Exception:
-            return False
+            return True
 
     def _login(self) -> None:
         email = get_config("spotify_email")
@@ -432,7 +433,7 @@ class SpotifyController:
             time.sleep(2)
         page.locator("input#login-username").fill(email, timeout=10_000)
         page.locator("input#login-password").fill(password, timeout=10_000)
-        page.locator("button#login-button").click(timeout=10_000)
+        page.locator("button#login-button").click(timeout=10_000, force=True)
         page.wait_for_url("**/open.spotify.com/**", timeout=30_000)
         time.sleep(3)
         try:
