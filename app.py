@@ -373,6 +373,7 @@ class SpotifyController:
             user_data_dir=str(BROWSER_DATA_DIR),
             channel="chrome",
             headless=False,
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             args=[
                 "--headless=new",
                 "--mute-audio",
@@ -399,9 +400,15 @@ class SpotifyController:
 
         self._page.on("request", self._intercept_request)
         self._page.goto(self.URL, wait_until="domcontentloaded", timeout=60_000)
-        time.sleep(3)
-        if not self._is_logged_in():
+        time.sleep(5)
+        
+        # If we injected an sp_dc cookie, we must NEVER fall back to the /login page
+        # because that's where the aggressive CAPTCHAs live.
+        if sp_dc:
+            log.info("Bypassing login check entirely due to SP_DC cookie.")
+        elif not self._is_logged_in():
             self._login()
+            
         log.info("Spotify ready.")
 
     def shutdown(self) -> None:
