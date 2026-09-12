@@ -121,3 +121,4 @@ To update a running Portainer deployment: click Recreate on the stack with "Re-p
 - The relay loop has exponential backoff for errors (5 seconds up to 2 minutes). If the browser crashes or the network drops, it recovers on its own.
 - The container is set to `restart: unless-stopped`, so it comes back after reboots.
 - The dashboard is dark mode. There is no light mode.
+

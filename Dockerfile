@@ -6,8 +6,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (Chromium only to save space)
-RUN playwright install chromium
+# Install Google Chrome for Widevine DRM support (required by Spotify)
+RUN playwright install chrome
+RUN playwright install-deps chrome
 
 # Copy application code
 COPY . .

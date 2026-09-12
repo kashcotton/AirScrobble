@@ -77,7 +77,7 @@ function render(d) {
   else { show('v-idle'); }
 
   if (d.updated) {
-    const s = Math.round((Date.now() - new Date(d.updated+'Z').getTime()) / 1000);
+    const s = Math.round((Date.now() - new Date(d.updated).getTime()) / 1000);
     g('ts').textContent = s < 5 ? 'just now' : s + 's ago';
   }
 }

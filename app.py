@@ -341,6 +341,7 @@ class SpotifyController:
         self._pw = sync_playwright().start()
         self._ctx = self._pw.chromium.launch_persistent_context(
             user_data_dir=str(BROWSER_DATA_DIR),
+            channel="chrome",
             headless=True,
             args=[
                 "--mute-audio",
@@ -419,10 +420,11 @@ class SpotifyController:
             btn = self._page.locator(
                 'button[data-testid="play-button"], '
                 'div[data-testid="top-result-card"] button[aria-label*="Play"], '
+                'div[data-testid="tracklist-row"] button, '
                 'button[aria-label*="Play"]'
             ).first
             btn.scroll_into_view_if_needed(timeout=8_000)
-            btn.click(timeout=8_000)
+            btn.click(timeout=8_000, force=True)
             self._current_query = query
             log.info("Playing: %s — %s", track, artist)
             return True
@@ -438,7 +440,7 @@ class SpotifyController:
                 'button[data-testid="control-button-pause"], button[aria-label="Pause"]'
             ).first
             if btn.is_visible(timeout=3_000):
-                btn.click(timeout=5_000)
+                btn.click(timeout=5_000, force=True)
                 log.info("Paused.")
         except Exception:
             pass
