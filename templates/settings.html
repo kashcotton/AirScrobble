@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}settings — airscrobble{% endblock %}
+
+{% block content %}
+<h1 class="text-sm font-medium text-zinc-100 mb-10">Settings</h1>
+
+<form id="form" class="space-y-10">
+
+  <!-- Last.fm -->
+  <section>
+    <h2 class="text-[11px] text-zinc-500 uppercase tracking-widest mb-4">Last.fm</h2>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-[12px] text-zinc-500 mb-1.5">API Key</label>
+        <input type="text" name="lastfm_api_key" value="{{ config.lastfm_api_key }}"
+               placeholder="Your Last.fm API key" spellcheck="false"
+               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
+                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors mono">
+      </div>
+      <div>
+        <label class="block text-[12px] text-zinc-500 mb-1.5">Username</label>
+        <input type="text" name="lastfm_username" value="{{ config.lastfm_username }}"
+               placeholder="Your Last.fm username" spellcheck="false"
+               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
+                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+      </div>
+      <div class="pt-1">
+        <button type="button" id="test-btn"
+                class="text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer">
+          Test connection
+        </button>
+        <span id="test-msg" class="text-[12px] ml-2"></span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="border-zinc-800/50">
+
+  <!-- Spotify -->
+  <section>
+    <h2 class="text-[11px] text-zinc-500 uppercase tracking-widest mb-4">Spotify</h2>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-[12px] text-zinc-500 mb-1.5">Email</label>
+        <input type="email" name="spotify_email" value="{{ config.spotify_email }}"
+               placeholder="your@email.com" spellcheck="false"
+               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
+                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+      </div>
+      <div>
+        <label class="block text-[12px] text-zinc-500 mb-1.5">Password</label>
+        <input type="password" name="spotify_password"
+               placeholder="{{ 'Saved — leave blank to keep' if has_password else 'Your Spotify password' }}"
+               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
+                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+      </div>
+    </div>
+  </section>
+
+  <hr class="border-zinc-800/50">
+
+  <!-- General -->
+  <section>
+    <h2 class="text-[11px] text-zinc-500 uppercase tracking-widest mb-4">General</h2>
+    <div>
+      <label class="block text-[12px] text-zinc-500 mb-1.5">Poll interval (seconds)</label>
+      <input type="number" name="poll_interval" value="{{ config.poll_interval or 10 }}" min="5" max="120"
+             class="w-32 bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
+                    placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+    </div>
+  </section>
+
+  <!-- Actions -->
+  <div class="flex items-center gap-3 pt-2">
+    <button type="submit"
+            class="bg-zinc-100 text-zinc-900 text-sm font-medium rounded px-5 py-2
+                   hover:bg-white active:bg-zinc-200 transition-colors cursor-pointer">
+      Save
+    </button>
+    <span id="save-msg" class="text-[12px]"></span>
+  </div>
+</form>
+
+<script>
+const form   = document.getElementById('form');
+const sMsg   = document.getElementById('save-msg');
+const tBtn   = document.getElementById('test-btn');
+const tMsg   = document.getElementById('test-msg');
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(form));
+  if (!d.spotify_password) delete d.spotify_password;
+
+  try {
+    const r = await fetch('/api/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(d),
+    });
+    if (r.status === 401) { location.href = '/login'; return; }
+    const j = await r.json();
+    sMsg.textContent = j.ok ? 'Saved.' : 'Error.';
+    sMsg.className   = 'text-[12px] ' + (j.ok ? 'text-green-500' : 'text-red-400');
+  } catch {
+    sMsg.textContent = 'Network error.';
+    sMsg.className   = 'text-[12px] text-red-400';
+  }
+  setTimeout(() => sMsg.textContent = '', 4000);
+});
+
+tBtn.addEventListener('click', async () => {
+  const ak = form.lastfm_api_key.value.trim();
+  const un = form.lastfm_username.value.trim();
+  tMsg.textContent = 'testing …';
+  tMsg.className   = 'text-[12px] ml-2 text-zinc-500';
+
+  try {
+    const r = await fetch('/api/test-lastfm', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({api_key: ak, username: un}),
+    });
+    const j = await r.json();
+    tMsg.textContent = j.ok ? 'Connected.' : (j.error || 'Failed.');
+    tMsg.className   = 'text-[12px] ml-2 ' + (j.ok ? 'text-green-500' : 'text-red-400');
+  } catch {
+    tMsg.textContent = 'Network error.';
+    tMsg.className   = 'text-[12px] ml-2 text-red-400';
+  }
+  setTimeout(() => tMsg.textContent = '', 5000);
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="dash">
+  <!-- status line -->
+  <div class="flex items-center gap-2.5 mb-10">
+    <span id="dot" class="w-1.5 h-1.5 rounded-full bg-zinc-700 flex-shrink-0"></span>
+    <span id="state" class="text-[11px] text-zinc-500 uppercase tracking-widest">loading</span>
+  </div>
+
+  <!-- not configured -->
+  <div id="v-setup" class="hidden">
+    <p class="text-sm text-zinc-500 leading-relaxed mb-4">Configure your Last.fm and Spotify accounts to start syncing.</p>
+    <a href="/settings" class="text-sm text-zinc-300 underline underline-offset-4 decoration-zinc-700 hover:decoration-zinc-400 transition-colors">
+      Go to settings
+    </a>
+  </div>
+
+  <!-- idle -->
+  <div id="v-idle" class="hidden">
+    <p class="text-sm text-zinc-500">Nothing playing.</p>
+  </div>
+
+  <!-- now playing -->
+  <div id="v-playing" class="hidden flex items-start gap-4">
+    <img id="art" src="" alt=""
+         class="w-14 h-14 rounded bg-zinc-800 object-cover flex-shrink-0 hidden">
+    <div class="min-w-0 pt-0.5">
+      <p id="track" class="text-[15px] font-medium text-zinc-100 truncate"></p>
+      <p id="artist" class="text-sm text-zinc-400 truncate mt-0.5"></p>
+      <p id="album" class="text-xs text-zinc-600 truncate mt-0.5"></p>
+    </div>
+  </div>
+
+  <!-- error -->
+  <div id="v-error" class="hidden">
+    <p id="err-msg" class="text-sm text-red-400/80">Something went wrong.</p>
+  </div>
+
+  <!-- timestamp -->
+  <p id="ts" class="text-[11px] text-zinc-700 mt-10"></p>
+</div>
+
+<script>
+const g = id => document.getElementById(id);
+const views = ['v-setup','v-idle','v-playing','v-error'];
+const dots = {
+  syncing:'bg-green-500', idle:'bg-zinc-500',
+  not_configured:'bg-zinc-700', error:'bg-red-500/80',
+};
+const labels = {
+  syncing:'playing', idle:'idle', not_configured:'not configured',
+  error:'error', starting:'starting',
+};
+
+function show(id) {
+  views.forEach(v => g(v).classList.toggle('hidden', v !== id));
+}
+
+function render(d) {
+  g('dot').className = 'w-1.5 h-1.5 rounded-full flex-shrink-0 ' + (dots[d.state] || 'bg-zinc-700');
+  g('state').textContent = labels[d.state] || d.state || '—';
+
+  if (!d.configured && d.state === 'not_configured') { show('v-setup'); }
+  else if (d.state === 'syncing') {
+    show('v-playing');
+    g('track').textContent = d.track || '';
+    g('artist').textContent = d.artist || '';
+    g('album').textContent = d.album || '';
+    if (d.artwork) { g('art').src = d.artwork; g('art').classList.remove('hidden'); }
+    else { g('art').classList.add('hidden'); }
+  }
+  else if (d.state === 'error') {
+    show('v-error');
+    if (d.error) g('err-msg').textContent = d.error;
+  }
+  else { show('v-idle'); }
+
+  if (d.updated) {
+    const s = Math.round((Date.now() - new Date(d.updated+'Z').getTime()) / 1000);
+    g('ts').textContent = s < 5 ? 'just now' : s + 's ago';
+  }
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/api/status');
+    if (r.status === 401) { location.href = '/login'; return; }
+    render(await r.json());
+  } catch {
+    g('state').textContent = 'offline';
+    g('dot').className = 'w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500/80';
+  }
+}
+
+poll();
+setInterval(poll, 3000);
+</script>
+{% endblock %}

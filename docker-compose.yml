@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  airscrobble:
+    build: .
+    container_name: airscrobble
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./browser_data:/app/browser_data
+      - ./data:/app/data
+    environment:
+      - DASHBOARD_USERNAME=${DASHBOARD_USERNAME:-admin}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-airscrobble}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-auto-change-me}
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

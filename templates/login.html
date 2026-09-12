@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}log in — airscrobble{% endblock %}
+{% block main_class %}py-0{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center">
+  <div class="w-full max-w-[280px]">
+    <p class="mono text-[13px] font-semibold text-zinc-100 mb-8 tracking-tight">airscrobble</p>
+
+    {% if error %}
+    <p class="text-[13px] text-red-400 mb-5">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST" class="space-y-4">
+      <div>
+        <label class="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Username</label>
+        <input type="text" name="username" required autofocus autocomplete="username"
+               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
+                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+      </div>
+      <div>
+        <label class="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Password</label>
+        <input type="password" name="password" required autocomplete="current-password"
+               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
+                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+      </div>
+      <button type="submit"
+              class="w-full bg-zinc-100 text-zinc-900 text-sm font-medium rounded px-3 py-2
+                     hover:bg-white active:bg-zinc-200 transition-colors cursor-pointer">
+        Log in
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
