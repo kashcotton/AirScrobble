@@ -1,36 +1,40 @@
 {% extends "base.html" %}
-{% block title %}log in — airscrobble{% endblock %}
+{% block title %}Log In - AirScrobble{% endblock %}
 {% block main_class %}py-0{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center">
-  <div class="w-full max-w-[280px]">
-    <p class="mono text-[13px] font-semibold text-zinc-100 mb-8 tracking-tight">airscrobble</p>
+<div class="h-[calc(100vh-100px)] flex flex-col items-center justify-center">
+  <div class="w-full max-w-sm bg-white rounded-[2rem] p-8 bubbly-shadow flex flex-col items-center text-center relative overflow-hidden border border-zinc-100">
+    <div class="w-16 h-16 bg-[#FFD700] rounded-full flex items-center justify-center mb-6 shadow-md">
+      <svg class="w-8 h-8 text-zinc-900" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+    </div>
+    
+    <h1 class="text-2xl font-black text-zinc-900 mb-6">Welcome back</h1>
 
     {% if error %}
-    <p class="text-[13px] text-red-400 mb-5">{{ error }}</p>
+    <div class="bg-red-50 text-red-500 font-bold text-sm px-4 py-2 rounded-xl mb-6 w-full">
+      {{ error }}
+    </div>
     {% endif %}
 
-    <form method="POST" class="space-y-4">
+    <form method="POST" class="space-y-4 w-full text-left">
       <div>
-        <label class="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Username</label>
+        <label class="block text-[13px] font-bold text-zinc-600 mb-2">Username</label>
         <input type="text" name="username" required autofocus autocomplete="username"
-               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
-                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+               class="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-sm text-zinc-900 font-medium placeholder-zinc-400 outline-none focus:border-zinc-400 transition-colors">
       </div>
       <div>
-        <label class="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Password</label>
+        <label class="block text-[13px] font-bold text-zinc-600 mb-2">Password</label>
         <input type="password" name="password" required autocomplete="current-password"
-               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
-                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
+               class="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-sm text-zinc-900 font-medium placeholder-zinc-400 outline-none focus:border-zinc-400 transition-colors">
       </div>
-      <button type="submit"
-              class="w-full bg-zinc-100 text-zinc-900 text-sm font-medium rounded px-3 py-2
-                     hover:bg-white active:bg-zinc-200 transition-colors cursor-pointer">
-        Log in
-      </button>
+      <div class="pt-4">
+        <button type="submit"
+                class="w-full bg-zinc-900 text-white font-bold rounded-full px-6 py-3.5 hover:bg-zinc-800 transition shadow-lg hover:-translate-y-0.5 transform">
+          Log In
+        </button>
+      </div>
     </form>
   </div>
 </div>
 {% endblock %}
-

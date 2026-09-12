@@ -1,93 +1,87 @@
 {% extends "base.html" %}
-{% block title %}settings — airscrobble{% endblock %}
+{% block title %}Settings - AirScrobble{% endblock %}
 
 {% block content %}
-<h1 class="text-sm font-medium text-zinc-100 mb-10">Settings</h1>
+<div class="w-full max-w-lg mx-auto bg-white rounded-[2rem] p-8 bubbly-shadow border border-zinc-100">
+  <h1 class="text-2xl font-black text-zinc-900 mb-8">Settings</h1>
 
-<form id="form" class="space-y-10">
+  <form id="form" class="space-y-8">
+    <!-- Last.fm -->
+    <section>
+      <h2 class="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">Last.fm</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-[13px] font-bold text-zinc-600 mb-2">API Key</label>
+          <input type="text" name="lastfm_api_key" value="{{ config.lastfm_api_key }}"
+                 placeholder="Your Last.fm API key" spellcheck="false"
+                 class="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-sm text-zinc-900 font-medium placeholder-zinc-400 outline-none focus:border-zinc-400 transition-colors">
+        </div>
+        <div>
+          <label class="block text-[13px] font-bold text-zinc-600 mb-2">Username</label>
+          <input type="text" name="lastfm_username" value="{{ config.lastfm_username }}"
+                 placeholder="Your Last.fm username" spellcheck="false"
+                 class="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-sm text-zinc-900 font-medium placeholder-zinc-400 outline-none focus:border-zinc-400 transition-colors">
+        </div>
+        <div class="pt-1 flex items-center">
+          <button type="button" id="test-btn"
+                  class="text-xs font-bold text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer bg-zinc-100 px-3 py-1.5 rounded-full">
+            Test connection
+          </button>
+          <span id="test-msg" class="text-xs font-bold ml-3"></span>
+        </div>
+      </div>
+    </section>
 
-  <!-- Last.fm -->
-  <section>
-    <h2 class="text-[11px] text-zinc-500 uppercase tracking-widest mb-4">Last.fm</h2>
-    <div class="space-y-3">
+    <hr class="border-zinc-100">
+
+    <!-- Spotify -->
+    <section>
+      <h2 class="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">Spotify</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-[13px] font-bold text-zinc-600 mb-2">SP_DC Cookie (Recommended)</label>
+          <input type="password" name="spotify_sp_dc" value="{{ config.spotify_sp_dc }}"
+                 placeholder="Paste your sp_dc cookie to bypass login issues" spellcheck="false"
+                 class="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-sm text-zinc-900 font-medium placeholder-zinc-400 outline-none focus:border-zinc-400 transition-colors">
+          <p class="text-[11px] font-semibold text-zinc-400 mt-2 leading-tight">If Spotify blocks the bot login, paste your <b>sp_dc</b> cookie value here. (F12 -> Application -> Cookies -> open.spotify.com)</p>
+        </div>
+        <div class="opacity-50">
+          <label class="block text-[13px] font-bold text-zinc-600 mb-2">Email (Legacy Fallback)</label>
+          <input type="email" name="spotify_email" value="{{ config.spotify_email }}"
+                 placeholder="your@email.com" spellcheck="false"
+                 class="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-sm text-zinc-900 font-medium placeholder-zinc-400 outline-none focus:border-zinc-400 transition-colors">
+        </div>
+        <div class="opacity-50">
+          <label class="block text-[13px] font-bold text-zinc-600 mb-2">Password (Legacy Fallback)</label>
+          <input type="password" name="spotify_password"
+                 placeholder="{{ 'Saved ? leave blank to keep' if has_password else 'Your Spotify password' }}"
+                 class="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-sm text-zinc-900 font-medium placeholder-zinc-400 outline-none focus:border-zinc-400 transition-colors">
+        </div>
+      </div>
+    </section>
+
+    <hr class="border-zinc-100">
+
+    <!-- General -->
+    <section>
+      <h2 class="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">General</h2>
       <div>
-        <label class="block text-[12px] text-zinc-500 mb-1.5">API Key</label>
-        <input type="text" name="lastfm_api_key" value="{{ config.lastfm_api_key }}"
-               placeholder="Your Last.fm API key" spellcheck="false"
-               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
-                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors mono">
+        <label class="block text-[13px] font-bold text-zinc-600 mb-2">Poll interval (seconds)</label>
+        <input type="number" name="poll_interval" value="{{ config.poll_interval or 10 }}" min="5" max="120"
+               class="w-32 bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-sm text-zinc-900 font-medium placeholder-zinc-400 outline-none focus:border-zinc-400 transition-colors">
       </div>
-      <div>
-        <label class="block text-[12px] text-zinc-500 mb-1.5">Username</label>
-        <input type="text" name="lastfm_username" value="{{ config.lastfm_username }}"
-               placeholder="Your Last.fm username" spellcheck="false"
-               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
-                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
-      </div>
-      <div class="pt-1">
-        <button type="button" id="test-btn"
-                class="text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer">
-          Test connection
-        </button>
-        <span id="test-msg" class="text-[12px] ml-2"></span>
-      </div>
+    </section>
+
+    <!-- Actions -->
+    <div class="flex items-center gap-4 pt-4">
+      <button type="submit"
+              class="bg-zinc-900 text-white text-sm font-bold rounded-full px-8 py-3.5 hover:bg-zinc-800 hover:-translate-y-0.5 transform transition shadow-lg">
+        Save Changes
+      </button>
+      <span id="save-msg" class="text-sm font-bold"></span>
     </div>
-  </section>
-
-  <hr class="border-zinc-800/50">
-
-  <!-- Spotify -->
-  <section>
-    <h2 class="text-[11px] text-zinc-500 uppercase tracking-widest mb-4">Spotify</h2>
-    <div class="space-y-3">
-      <div>
-        <label class="block text-[12px] text-zinc-500 mb-1.5">Email</label>
-        <input type="email" name="spotify_email" value="{{ config.spotify_email }}"
-               placeholder="your@email.com" spellcheck="false"
-               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
-                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
-      </div>
-      <div>
-        <label class="block text-[12px] text-zinc-500 mb-1.5">Password</label>
-        <input type="password" name="spotify_password"
-               placeholder="{{ 'Saved — leave blank to keep' if has_password else 'Your Spotify password' }}"
-               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
-                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
-      </div>
-      <div>
-        <label class="block text-[12px] text-zinc-500 mb-1.5">SP_DC Cookie (Bypasses Login)</label>
-        <input type="password" name="spotify_sp_dc" value="{{ config.spotify_sp_dc }}"
-               placeholder="Optional: Paste your sp_dc cookie to bypass login issues" spellcheck="false"
-               class="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
-                      placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
-        <p class="text-[10px] text-zinc-500 mt-1">If Spotify blocks the bot login, paste your <b>sp_dc</b> cookie value here. (F12 -> Application -> Cookies -> open.spotify.com)</p>
-      </div>
-    </div>
-  </section>
-
-  <hr class="border-zinc-800/50">
-
-  <!-- General -->
-  <section>
-    <h2 class="text-[11px] text-zinc-500 uppercase tracking-widest mb-4">General</h2>
-    <div>
-      <label class="block text-[12px] text-zinc-500 mb-1.5">Poll interval (seconds)</label>
-      <input type="number" name="poll_interval" value="{{ config.poll_interval or 10 }}" min="5" max="120"
-             class="w-32 bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200
-                    placeholder-zinc-600 outline-none focus:border-zinc-600 transition-colors">
-    </div>
-  </section>
-
-  <!-- Actions -->
-  <div class="flex items-center gap-3 pt-2">
-    <button type="submit"
-            class="bg-zinc-100 text-zinc-900 text-sm font-medium rounded px-5 py-2
-                   hover:bg-white active:bg-zinc-200 transition-colors cursor-pointer">
-      Save
-    </button>
-    <span id="save-msg" class="text-[12px]"></span>
-  </div>
-</form>
+  </form>
+</div>
 
 <script>
 const form   = document.getElementById('form');
@@ -108,11 +102,11 @@ form.addEventListener('submit', async e => {
     });
     if (r.status === 401) { location.href = '/login'; return; }
     const j = await r.json();
-    sMsg.textContent = j.ok ? 'Saved.' : 'Error.';
-    sMsg.className   = 'text-[12px] ' + (j.ok ? 'text-green-500' : 'text-red-400');
+    sMsg.textContent = j.ok ? 'Saved successfully!' : 'Error saving settings.';
+    sMsg.className   = 'text-sm font-bold ' + (j.ok ? 'text-green-500' : 'text-red-500');
   } catch {
     sMsg.textContent = 'Network error.';
-    sMsg.className   = 'text-[12px] text-red-400';
+    sMsg.className   = 'text-sm font-bold text-red-500';
   }
   setTimeout(() => sMsg.textContent = '', 4000);
 });
@@ -120,8 +114,8 @@ form.addEventListener('submit', async e => {
 tBtn.addEventListener('click', async () => {
   const ak = form.lastfm_api_key.value.trim();
   const un = form.lastfm_username.value.trim();
-  tMsg.textContent = 'testing …';
-  tMsg.className   = 'text-[12px] ml-2 text-zinc-500';
+  tMsg.textContent = 'Testing...';
+  tMsg.className   = 'text-xs font-bold text-zinc-400 ml-3';
 
   try {
     const r = await fetch('/api/test-lastfm', {
@@ -130,11 +124,11 @@ tBtn.addEventListener('click', async () => {
       body: JSON.stringify({api_key: ak, username: un}),
     });
     const j = await r.json();
-    tMsg.textContent = j.ok ? 'Connected.' : (j.error || 'Failed.');
-    tMsg.className   = 'text-[12px] ml-2 ' + (j.ok ? 'text-green-500' : 'text-red-400');
+    tMsg.textContent = j.ok ? 'Connected!' : (j.error || 'Failed.');
+    tMsg.className   = 'text-xs font-bold ml-3 ' + (j.ok ? 'text-green-500' : 'text-red-500');
   } catch {
     tMsg.textContent = 'Network error.';
-    tMsg.className   = 'text-[12px] ml-2 text-red-400';
+    tMsg.className   = 'text-xs font-bold ml-3 text-red-500';
   }
   setTimeout(() => tMsg.textContent = '', 5000);
 });

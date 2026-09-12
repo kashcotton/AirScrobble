@@ -278,20 +278,6 @@ def health():
     return "ok", 200
 
 
-@app.route("/debug")
-def debug_view():
-    return '<img src="/api/debug-image" style="max-width:100%;">'
-
-
-@app.route("/api/debug-image")
-def debug_image():
-    import flask
-    path = BROWSER_DATA_DIR / "debug.png"
-    if not path.exists():
-        return "No screenshot yet", 404
-    return flask.send_file(str(path), mimetype='image/png')
-
-
 # ── Last.fm ───────────────────────────────────────────────────────────────
 
 @dataclass
@@ -564,11 +550,6 @@ class SpotifyController:
                 btn.scroll_into_view_if_needed(timeout=5_000)
                 btn.evaluate("node => node.click()")
                 
-                try:
-                    self._page.screenshot(path=str(BROWSER_DATA_DIR / "debug.png"))
-                except:
-                    pass
-                
                 self._current_query = query
                 log.info("▶ Playing exact match via API lookup: %s — %s", track, artist)
                 return True
@@ -626,11 +607,6 @@ class SpotifyController:
             btn = self._page.locator('main button[data-testid="play-button"], main button[aria-label*="Play"]').first
             btn.scroll_into_view_if_needed(timeout=8_000)
             btn.evaluate("node => node.click()")
-            
-            try:
-                self._page.screenshot(path=str(BROWSER_DATA_DIR / "debug.png"))
-            except:
-                pass
 
             self._current_query = query
             log.info("Playing (UI fallback): %s — %s", track, artist)
