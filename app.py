@@ -345,6 +345,14 @@ class SpotifyController:
     def launch(self) -> None:
         log.info("Launching browser …")
         BROWSER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Clear left-over lock files from unclean docker shutdowns
+        for lock_file in BROWSER_DATA_DIR.glob("Singleton*"):
+            try:
+                lock_file.unlink()
+            except Exception:
+                pass
+
         self._pw = sync_playwright().start()
         self._ctx = self._pw.chromium.launch_persistent_context(
             user_data_dir=str(BROWSER_DATA_DIR),
