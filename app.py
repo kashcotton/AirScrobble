@@ -444,8 +444,20 @@ class SpotifyController:
             
         try:
             page.locator("input#login-username").fill(email, timeout=10_000)
-            page.locator("input#login-password").fill(password, timeout=10_000)
-            page.locator("button#login-button").click(timeout=10_000, force=True)
+            time.sleep(1)
+            
+            # Handle Spotify's two-step login flow
+            pwd_field = page.locator("input#login-password")
+            if not pwd_field.is_visible():
+                log.info("Two-step login flow detected. Proceeding to password step...")
+                page.locator('button#login-button, button[data-testid="login-button"]').first.click(timeout=5_000, force=True)
+                pwd_field.wait_for(state="visible", timeout=10_000)
+                time.sleep(1)
+                
+            pwd_field.fill(password, timeout=10_000)
+            time.sleep(1)
+            page.locator('button#login-button, button[data-testid="login-button"]').first.click(timeout=10_000, force=True)
+            
             page.wait_for_url("**/open.spotify.com/**", timeout=30_000)
             time.sleep(3)
         except Exception as exc:
