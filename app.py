@@ -521,80 +521,44 @@ class SpotifyController:
             log.debug("API search error: %s", e)
         return None
 
-    def search_and_play(self, track: str, artist: str) -> bool:
-        query = f"{track} {artist}"
-        if self._current_query == query:
-            return True
-        log.info("Searching: %s", query)
-
-        track_uri = None
-        token = self._get_token()
-        if token:
-            track_uri = self._api_search(f"{track} {artist}")
-            if not track_uri:
-                track_uri = self._api_search(track)
-
-        if track_uri and track_uri.startswith("spotify:track:"):
-            track_id = track_uri.split(":")[-1]
-            try:
-                self._page.goto(f"{self.URL}/track/{track_id}", wait_until="domcontentloaded", timeout=30_000)
-                time.sleep(3)
-                
-                try:
-                    self._page.locator('#onetrust-accept-btn-handler').click(timeout=1000)
-                except:
-                    pass
-
-                # Strictly target the play button inside the main view to avoid the bottom bar
-                btn = self._page.locator('main button[data-testid="play-button"], main button[aria-label*="Play"]').first
-                btn.scroll_into_view_if_needed(timeout=5_000)
-                btn.evaluate("node => node.click()")
-                
-                self._current_query = query
-                log.info("▶ Playing exact match via API lookup: %s — %s", track, artist)
-                return True
-            except Exception as exc:
-                log.warning("Failed track page play: %s", exc)
-
-        # -- Local File Stream Fallback Injection --
-        if not track_uri and token:
-            log.info("Song not found on Spotify. Faking a local file stream via API injection...")
-            safe_artist = urllib.parse.quote(artist.replace(":", ""))
-            safe_track = urllib.parse.quote(track.replace(":", ""))
-            local_uri = f"spotify:local:{safe_artist}:unknown:{safe_track}:180000"
+    def _ensure_device_active(self, token: str) -> Optional[str]:
+        try:
+            r = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": token}, timeout=5)
+            devices = r.json().get("devices", [])
             
-            try:
-                dev_req = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": token}, timeout=5)
-                devices = dev_req.json().get("devices", [])
+            # 1. Check if already active
+            active_id = next((d.get("id") for d in devices if d.get("is_active")), None)
+            if active_id:
+                return active_id
                 
-                # If Web Player isn't active yet, force it to wake up by clicking the global play button briefly
-                if not devices:
-                    log.info("Waking up Web Player device...")
-                    try:
-                        self._page.locator('[data-testid="control-button-playpause"]').first.evaluate("node => node.click()")
-                        time.sleep(2)
-                        dev_req = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": token}, timeout=5)
-                        devices = dev_req.json().get("devices", [])
-                    except:
-                        pass
+            device_id = devices[0].get("id") if devices else None
+            
+            # 2. If no device exists, wake up the UI
+            if not device_id:
+                log.info("Waking up Web Player device...")
+                try:
+                    self._page.locator('[data-testid="control-button-playpause"]').first.evaluate("node => node.click()")
+                    time.sleep(1)
+                    r = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": token}, timeout=5)
+                    devices = r.json().get("devices", [])
+                    device_id = devices[0].get("id") if devices else None
+                except Exception:
+                    pass
+            
+            # 3. Transfer playback to make it the active device
+            if device_id:
+                requests.put(
+                    "https://api.spotify.com/v1/me/player",
+                    headers={"Authorization": token},
+                    json={"device_ids": [device_id], "play": False},
+                    timeout=5
+                )
+                return device_id
+        except Exception as e:
+            log.debug("Device activation error: %s", e)
+        return None
 
-                active_id = next((d.get("id") for d in devices if d.get("is_active")), devices[0].get("id") if devices else None)
-
-                if active_id:
-                    requests.put(
-                        "https://api.spotify.com/v1/me/player/play",
-                        headers={"Authorization": token},
-                        params={"device_id": active_id},
-                        json={"uris": [local_uri]},
-                        timeout=5
-                    )
-                    self._current_query = query
-                    log.info("▶ Pushed local file stream: %s", local_uri)
-                    return True
-            except Exception as exc:
-                log.warning("Local file API injection failed: %s", exc)
-
-        # -- Raw UI Search Fallback --
+    def _ui_fallback(self, query: str) -> bool:
         log.info("Fallback to raw UI search...")
         try:
             self._page.goto(
@@ -602,18 +566,60 @@ class SpotifyController:
                 wait_until="domcontentloaded",
                 timeout=30_000,
             )
-            time.sleep(3)
-            # Find the first play button inside the main search results view
             btn = self._page.locator('main button[data-testid="play-button"], main button[aria-label*="Play"]').first
-            btn.scroll_into_view_if_needed(timeout=8_000)
+            btn.wait_for(state="visible", timeout=10_000)
+            btn.scroll_into_view_if_needed(timeout=5_000)
             btn.evaluate("node => node.click()")
-
             self._current_query = query
-            log.info("Playing (UI fallback): %s — %s", track, artist)
             return True
         except Exception as exc:
-            log.warning("Playback failed: %s", exc)
+            log.warning("Playback UI fallback failed: %s", exc)
             return False
+
+    def search_and_play(self, track: str, artist: str) -> bool:
+        query = f"{track} {artist}"
+        if self._current_query == query:
+            return True
+            
+        log.info("Searching: %s", query)
+        token = self._get_token()
+        
+        # If no token, we must use the slow UI method
+        if not token:
+            return self._ui_fallback(query)
+
+        # 1. Fast API Lookup
+        track_uri = self._api_search(query) or self._api_search(track)
+        
+        # 2. Local File Generation
+        if not track_uri:
+            log.info("Song not found on Spotify. Faking a local file stream...")
+            safe_artist = urllib.parse.quote(artist.replace(":", ""))
+            safe_track = urllib.parse.quote(track.replace(":", ""))
+            track_uri = f"spotify:local:{safe_artist}:unknown:{safe_track}:180000"
+
+        # 3. Instant Connect API Injection (0 page reloads!)
+        active_id = self._ensure_device_active(token)
+        if active_id:
+            try:
+                res = requests.put(
+                    "https://api.spotify.com/v1/me/player/play",
+                    headers={"Authorization": token},
+                    params={"device_id": active_id},
+                    json={"uris": [track_uri]},
+                    timeout=5
+                )
+                if res.status_code in (200, 202, 204):
+                    self._current_query = query
+                    log.info("⚡ Instant Play API Success: %s", track_uri)
+                    return True
+                else:
+                    log.warning("Instant Play API rejected the request (Status %s).", res.status_code)
+            except Exception as exc:
+                log.warning("Instant Play API failed: %s", exc)
+
+        # 4. Fallback if the API injection fails (e.g. strict local file restrictions)
+        return self._ui_fallback(query)
 
     def pause(self) -> None:
         if not self._current_query:
