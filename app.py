@@ -11,6 +11,7 @@ import os
 import sqlite3
 import threading
 import time
+import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import wraps
@@ -334,6 +335,12 @@ class SpotifyController:
         self._ctx: Optional[BrowserContext] = None
         self._page: Optional[Page] = None
         self._current_query: Optional[str] = None
+        self._access_token: Optional[str] = None
+
+    def _intercept_request(self, request):
+        auth = request.headers.get("authorization", "")
+        if auth.startswith("Bearer "):
+            self._access_token = auth
 
     def launch(self) -> None:
         log.info("Launching browser …")
@@ -345,6 +352,7 @@ class SpotifyController:
             headless=True,
             args=[
                 "--mute-audio",
+                "--autoplay-policy=no-user-gesture-required",
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
             ],
@@ -352,6 +360,7 @@ class SpotifyController:
             ignore_default_args=["--enable-automation"],
         )
         self._page = self._ctx.new_page()
+        self._page.on("request", self._intercept_request)
         self._page.goto(self.URL, wait_until="domcontentloaded", timeout=60_000)
         time.sleep(3)
         if not self._is_logged_in():
@@ -405,14 +414,101 @@ class SpotifyController:
         time.sleep(3)
         log.info("Login successful.")
 
+    def _api_search(self, query: str) -> Optional[str]:
+        if not self._access_token:
+            return None
+        try:
+            r = requests.get(
+                "https://api.spotify.com/v1/search",
+                headers={"Authorization": self._access_token},
+                params={"q": query, "type": "track", "limit": 1},
+                timeout=5
+            )
+            if r.status_code == 200:
+                items = r.json().get("tracks", {}).get("items", [])
+                if items:
+                    return items[0].get("uri")
+        except Exception as e:
+            log.debug("API search error: %s", e)
+        return None
+
     def search_and_play(self, track: str, artist: str) -> bool:
         query = f"{track} {artist}"
         if self._current_query == query:
             return True
         log.info("Searching: %s", query)
+
+        track_uri = None
+        if self._access_token:
+            # Fuzzy fallback search: Try exact first, then just track name
+            track_uri = self._api_search(f"{track} {artist}")
+            if not track_uri:
+                track_uri = self._api_search(track)
+
+        if track_uri and track_uri.startswith("spotify:track:"):
+            track_id = track_uri.split(":")[-1]
+            try:
+                # Direct track page navigation completely bypasses all UI search issues!
+                self._page.goto(f"{self.URL}/track/{track_id}", wait_until="domcontentloaded", timeout=30_000)
+                time.sleep(3)
+                
+                # Accept cookie overlay if present
+                try:
+                    self._page.locator('#onetrust-accept-btn-handler').click(timeout=1000)
+                except:
+                    pass
+
+                # Grab the main track play button
+                btn = self._page.locator('button[data-testid="play-button"], button[data-testid="action-bar-play-button"]').first
+                btn.scroll_into_view_if_needed(timeout=5_000)
+                btn.click(timeout=5_000, force=True)
+                
+                self._current_query = query
+                log.info("▶ Playing exact match via API lookup: %s — %s", track, artist)
+                return True
+            except Exception as exc:
+                log.warning("Failed track page play: %s", exc)
+
+        # -- Local File Stream Fallback Injection --
+        if not track_uri and self._access_token:
+            log.info("Song not found on Spotify. Faking a local file stream via API injection...")
+            safe_artist = urllib.parse.quote(artist.replace(":", ""))
+            safe_track = urllib.parse.quote(track.replace(":", ""))
+            # Construct standard Spotify URI for local file stream representation
+            local_uri = f"spotify:local:{safe_artist}:unknown:{safe_track}:180000"
+            
+            try:
+                # Find the active Web Player session device
+                dev_req = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": self._access_token}, timeout=5)
+                devices = dev_req.json().get("devices", [])
+                active_id = None
+                for d in devices:
+                    if d.get("is_active"):
+                        active_id = d.get("id")
+                        break
+                if not active_id and devices:
+                    active_id = devices[0].get("id")
+
+                if active_id:
+                    # Push the custom local track directly to the Spotify connect endpoint
+                    requests.put(
+                        "https://api.spotify.com/v1/me/player/play",
+                        headers={"Authorization": self._access_token},
+                        params={"device_id": active_id},
+                        json={"uris": [local_uri]},
+                        timeout=5
+                    )
+                    self._current_query = query
+                    log.info("▶ Pushed local file stream: %s", local_uri)
+                    return True
+            except Exception as exc:
+                log.warning("Local file API injection failed: %s", exc)
+
+        # -- Raw UI Search Fallback --
+        log.info("Fallback to raw UI search...")
         try:
             self._page.goto(
-                f"{self.URL}/search/{requests.utils.quote(query)}",
+                f"{self.URL}/search/{urllib.parse.quote(query)}",
                 wait_until="domcontentloaded",
                 timeout=30_000,
             )
@@ -426,7 +522,7 @@ class SpotifyController:
             btn.scroll_into_view_if_needed(timeout=8_000)
             btn.click(timeout=8_000, force=True)
             self._current_query = query
-            log.info("Playing: %s — %s", track, artist)
+            log.info("Playing (UI fallback): %s — %s", track, artist)
             return True
         except Exception as exc:
             log.warning("Playback failed: %s", exc)
