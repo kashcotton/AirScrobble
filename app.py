@@ -401,45 +401,60 @@ class SpotifyController:
         self._ctx = self._pw = self._page = None
 
     def _is_logged_in(self) -> bool:
+        time.sleep(2)
         try:
-            # If the "Log in" button is visible, we are definitively not logged in.
-            if self._page.locator('[data-testid="login-button"]').first.is_visible(timeout=5_000):
+            # Positive proof: User profile widget exists
+            user_node = self._page.locator('[data-testid="user-widget-link"], [data-testid="user-widget-avatar"]').first
+            if user_node.is_visible(timeout=3_000):
+                return True
+                
+            # Negative proof: Login/Signup buttons exist
+            login_node = self._page.locator('button[data-testid*="login"], a[data-testid*="login"], button:has-text("Log in")').first
+            if login_node.is_visible(timeout=3_000):
                 return False
-            return True
-        except Exception:
-            return True
+        except:
+            pass
+            
+        # Default to False: If we can't explicitly prove we are logged in, we MUST attempt to login.
+        return False
 
     def _login(self) -> None:
         email = get_config("spotify_email")
         password = get_config("spotify_password")
         if not email or not password:
             raise RuntimeError("Spotify credentials not configured")
+            
         log.info("Logging in to Spotify …")
         page = self._page
-        try:
-            page.locator(
-                'button[data-testid="login-button"], '
-                'a[data-testid="login-button"], '
-                'a[href*="login"]'
-            ).first.click(timeout=10_000)
-            page.wait_for_load_state("domcontentloaded", timeout=15_000)
-            time.sleep(2)
-        except Exception:
-            page.goto(
-                "https://accounts.spotify.com/login",
-                wait_until="domcontentloaded",
-                timeout=30_000,
-            )
-            time.sleep(2)
-        page.locator("input#login-username").fill(email, timeout=10_000)
-        page.locator("input#login-password").fill(password, timeout=10_000)
-        page.locator("button#login-button").click(timeout=10_000, force=True)
-        page.wait_for_url("**/open.spotify.com/**", timeout=30_000)
+        
+        # Navigate DIRECTLY to the login page to bypass brittle homepage selectors
+        page.goto("https://accounts.spotify.com/login", wait_until="domcontentloaded", timeout=30_000)
         time.sleep(3)
+        
+        # If Spotify instantly redirected us back to the web player, we are already logged in!
+        if "open.spotify.com" in page.url:
+            log.info("Already logged in (redirected).")
+            return
+            
+        # Accept cookie banner if it exists
         try:
-            page.screenshot(path=str(BROWSER_DATA_DIR / "debug.png"))
+            page.locator('#onetrust-accept-btn-handler').click(timeout=2000)
         except:
             pass
+            
+        try:
+            page.locator("input#login-username").fill(email, timeout=10_000)
+            page.locator("input#login-password").fill(password, timeout=10_000)
+            page.locator("button#login-button").click(timeout=10_000, force=True)
+            page.wait_for_url("**/open.spotify.com/**", timeout=30_000)
+            time.sleep(3)
+        except Exception as exc:
+            try:
+                page.screenshot(path=str(BROWSER_DATA_DIR / "debug.png"))
+            except:
+                pass
+            raise RuntimeError(f"Login failed (Check credentials or /debug for captcha): {exc}")
+            
         log.info("Login successful.")
 
     def _api_search(self, query: str) -> Optional[str]:
