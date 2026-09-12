@@ -277,6 +277,20 @@ def health():
     return "ok", 200
 
 
+@app.route("/debug")
+def debug_view():
+    return '<img src="/api/debug-image" style="max-width:100%;">'
+
+
+@app.route("/api/debug-image")
+def debug_image():
+    import flask
+    path = BROWSER_DATA_DIR / "debug.png"
+    if not path.exists():
+        return "No screenshot yet", 404
+    return flask.send_file(str(path), mimetype='image/png')
+
+
 # ── Last.fm ───────────────────────────────────────────────────────────────
 
 @dataclass
@@ -357,8 +371,9 @@ class SpotifyController:
         self._ctx = self._pw.chromium.launch_persistent_context(
             user_data_dir=str(BROWSER_DATA_DIR),
             channel="chrome",
-            headless=True,
+            headless=False,
             args=[
+                "--headless=new",
                 "--mute-audio",
                 "--autoplay-policy=no-user-gesture-required",
                 "--disable-blink-features=AutomationControlled",
@@ -420,6 +435,10 @@ class SpotifyController:
         page.locator("button#login-button").click(timeout=10_000)
         page.wait_for_url("**/open.spotify.com/**", timeout=30_000)
         time.sleep(3)
+        try:
+            page.screenshot(path=str(BROWSER_DATA_DIR / "debug.png"))
+        except:
+            pass
         log.info("Login successful.")
 
     def _api_search(self, query: str) -> Optional[str]:
@@ -469,7 +488,12 @@ class SpotifyController:
                 # Grab the main track play button
                 btn = self._page.locator('button[data-testid="play-button"], button[data-testid="action-bar-play-button"]').first
                 btn.scroll_into_view_if_needed(timeout=5_000)
-                btn.click(timeout=5_000, force=True)
+                btn.evaluate("node => node.click()")
+                
+                try:
+                    self._page.screenshot(path=str(BROWSER_DATA_DIR / "debug.png"))
+                except:
+                    pass
                 
                 self._current_query = query
                 log.info("▶ Playing exact match via API lookup: %s — %s", track, artist)
@@ -528,7 +552,13 @@ class SpotifyController:
                 'button[aria-label*="Play"]'
             ).first
             btn.scroll_into_view_if_needed(timeout=8_000)
-            btn.click(timeout=8_000, force=True)
+            btn.evaluate("node => node.click()")
+            
+            try:
+                self._page.screenshot(path=str(BROWSER_DATA_DIR / "debug.png"))
+            except:
+                pass
+
             self._current_query = query
             log.info("Playing (UI fallback): %s — %s", track, artist)
             return True
