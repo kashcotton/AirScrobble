@@ -31,7 +31,7 @@ from flask import (
 )
 from playwright.sync_api import sync_playwright, BrowserContext, Page
 
-# ── Bootstrap ─────────────────────────────────────────────────────────────
+                                                                            
 
 load_dotenv()
 
@@ -49,7 +49,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("airscrobble")
 
-# ── Database ──────────────────────────────────────────────────────────────
+                                                                            
 
 def _db() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH), timeout=5)
@@ -86,8 +86,8 @@ def db_init():
         conn.commit()
 
 
-# ── Config helpers ────────────────────────────────────────────────────────
-# DB values take priority. Env vars are a fallback for backward compat.
+                                                                            
+                                                                       
 
 _ENV_MAP = {
     "lastfm_api_key": "LASTFM_API_KEY",
@@ -137,7 +137,7 @@ def is_configured() -> bool:
     return has_lastfm and has_spotify
 
 
-# ── Status helpers ────────────────────────────────────────────────────────
+                                                                            
 
 def db_set_status(
     state: str,
@@ -162,7 +162,7 @@ def db_get_status() -> dict:
         return dict(row) if row else {"state": "unknown"}
 
 
-# ── Flask ─────────────────────────────────────────────────────────────────
+                                                                            
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET
@@ -180,7 +180,7 @@ def login_required(f):
     return wrapper
 
 
-# ── Routes: auth ──────────────────────────────────────────────────────────
+                                                                            
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -204,7 +204,7 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ── Routes: pages ─────────────────────────────────────────────────────────
+                                                                            
 
 @app.route("/")
 @login_required
@@ -220,7 +220,7 @@ def settings_page():
     return render_template("settings.html", config=config, has_password=has_password)
 
 
-# ── Routes: API ───────────────────────────────────────────────────────────
+                                                                            
 
 @app.route("/api/status")
 @login_required
@@ -237,7 +237,7 @@ def api_save_settings():
     for key in ("lastfm_api_key", "lastfm_username", "spotify_email", "spotify_sp_dc", "poll_interval"):
         if key in data:
             set_config(key, str(data[key]).strip())
-    # Only overwrite password if a new one was actually provided
+                                                                    
     if data.get("spotify_password"):
         set_config("spotify_password", data["spotify_password"])
     signal_restart()
@@ -278,7 +278,7 @@ def health():
     return "ok", 200
 
 
-# ── Last.fm ───────────────────────────────────────────────────────────────
+                                                                            
 
 @dataclass
 class NowPlayingTrack:
@@ -326,7 +326,7 @@ def lastfm_now_playing(api_key: str, username: str) -> Optional[NowPlayingTrack]
         return None
 
 
-# ── Spotify controller ────────────────────────────────────────────────────
+                                                                            
 
 class SpotifyController:
     URL = "https://open.spotify.com"
@@ -354,7 +354,7 @@ class SpotifyController:
         log.info("Launching browser …")
         BROWSER_DATA_DIR.mkdir(parents=True, exist_ok=True)
         
-        # Clear left-over lock files from unclean docker shutdowns
+                                                                          
         for lock_file in BROWSER_DATA_DIR.glob("Singleton*"):
             try:
                 lock_file.unlink()
@@ -396,8 +396,8 @@ class SpotifyController:
         self._page.goto(self.URL, wait_until="domcontentloaded", timeout=60_000)
         time.sleep(5)
         
-        # If we injected an sp_dc cookie, we must NEVER fall back to the /login page
-        # because that's where the aggressive CAPTCHAs live.
+                                                                                            
+                                                                    
         if sp_dc:
             log.info("Bypassing login check entirely due to SP_DC cookie.")
         elif not self._is_logged_in():
@@ -418,19 +418,19 @@ class SpotifyController:
     def _is_logged_in(self) -> bool:
         time.sleep(2)
         try:
-            # Positive proof: User profile widget exists
+                                                                    
             user_node = self._page.locator('[data-testid="user-widget-link"], [data-testid="user-widget-avatar"]').first
             if user_node.is_visible(timeout=3_000):
                 return True
                 
-            # Negative proof: Login/Signup buttons exist
+                                                                    
             login_node = self._page.locator('button[data-testid*="login"], a[data-testid*="login"], button:has-text("Log in")').first
             if login_node.is_visible(timeout=3_000):
                 return False
         except:
             pass
             
-        # Default to False: If we can't explicitly prove we are logged in, we MUST attempt to login.
+                                                                                                            
         return False
 
     def _login(self) -> None:
@@ -442,16 +442,16 @@ class SpotifyController:
         log.info("Logging in to Spotify …")
         page = self._page
         
-        # Navigate DIRECTLY to the login page to bypass brittle homepage selectors
+                                                                                          
         page.goto("https://accounts.spotify.com/login", wait_until="domcontentloaded", timeout=30_000)
         time.sleep(3)
         
-        # If Spotify instantly redirected us back to the web player, we are already logged in!
+                                                                                                      
         if "open.spotify.com" in page.url:
             log.info("Already logged in (redirected).")
             return
             
-        # Accept cookie banner if it exists
+                                                   
         try:
             page.locator('#onetrust-accept-btn-handler').click(timeout=2000)
         except:
@@ -462,7 +462,7 @@ class SpotifyController:
             email_loc.fill(email, timeout=10_000)
             time.sleep(1)
             
-            # Handle Spotify's two-step login flow
+                                                              
             pwd_loc = page.locator('input[type="password"], input#login-password, input#password').first
             if not pwd_loc.is_visible():
                 log.info("Two-step login flow detected. Proceeding to password step...")
@@ -490,7 +490,7 @@ class SpotifyController:
     def _get_token(self) -> Optional[str]:
         if self._access_token:
             return self._access_token
-        # Retry loop to avoid race condition on startup
+                                                               
         for _ in range(3):
             try:
                 token = self._page.evaluate("() => fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player').then(r => r.json()).then(j => j.accessToken)")
@@ -526,14 +526,14 @@ class SpotifyController:
             r = requests.get("https://api.spotify.com/v1/me/player/devices", headers={"Authorization": token}, timeout=5)
             devices = r.json().get("devices", [])
             
-            # 1. Check if already active
+                                                    
             active_id = next((d.get("id") for d in devices if d.get("is_active")), None)
             if active_id:
                 return active_id
                 
             device_id = devices[0].get("id") if devices else None
             
-            # 2. If no device exists, wake up the UI
+                                                                
             if not device_id:
                 log.info("Waking up Web Player device...")
                 try:
@@ -545,7 +545,7 @@ class SpotifyController:
                 except Exception:
                     pass
             
-            # 3. Transfer playback to make it the active device
+                                                                           
             if device_id:
                 requests.put(
                     "https://api.spotify.com/v1/me/player",
@@ -584,21 +584,21 @@ class SpotifyController:
         log.info("Searching: %s", query)
         token = self._get_token()
         
-        # If no token, we must use the slow UI method
+                                                             
         if not token:
             return self._ui_fallback(query)
 
-        # 1. Fast API Lookup
+                                    
         track_uri = self._api_search(query) or self._api_search(track)
         
-        # 2. Local File Generation
+                                          
         if not track_uri:
             log.info("Song not found on Spotify. Faking a local file stream...")
             safe_artist = urllib.parse.quote(artist.replace(":", ""))
             safe_track = urllib.parse.quote(track.replace(":", ""))
             track_uri = f"spotify:local:{safe_artist}:unknown:{safe_track}:180000"
 
-        # 3. Instant Connect API Injection (0 page reloads!)
+                                                                    
         active_id = self._ensure_device_active(token)
         if active_id:
             try:
@@ -618,7 +618,7 @@ class SpotifyController:
             except Exception as exc:
                 log.warning("Instant Play API failed: %s", exc)
 
-        # 4. Fallback if the API injection fails (e.g. strict local file restrictions)
+                                                                                              
         return self._ui_fallback(query)
 
     def pause(self) -> None:
@@ -643,7 +643,7 @@ class SpotifyController:
             return False
 
 
-# ── Relay loop ────────────────────────────────────────────────────────────
+                                                                            
 
 _restart_event = threading.Event()
 
@@ -659,7 +659,7 @@ def relay_loop() -> None:
     while True:
         _restart_event.clear()
 
-        # ── wait for config ──
+                                       
         while not is_configured():
             db_set_status("not_configured")
             if _restart_event.wait(timeout=3):
@@ -667,7 +667,7 @@ def relay_loop() -> None:
         if _restart_event.is_set():
             continue
 
-        # ── snapshot config ──
+                                       
         cfg = get_all_config()
         api_key = cfg["lastfm_api_key"]
         username = cfg["lastfm_username"]
@@ -720,13 +720,13 @@ def relay_loop() -> None:
         finally:
             spotify.shutdown()
 
-        # If loop exited on its own (not a config restart), apply backoff
+                                                                                 
         if not _restart_event.is_set():
             _restart_event.wait(timeout=backoff)
             backoff = min(backoff * 2, 120)
 
 
-# ── Main ──────────────────────────────────────────────────────────────────
+                                                                            
 
 def main() -> None:
     db_init()
