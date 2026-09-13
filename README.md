@@ -4,8 +4,6 @@ If you listen to music on Tidal, Deezer, YouTube Music, Plex, or local files, yo
 
 It keeps an eye on your Last.fm scrobbles in real time and mirrors whatever you're playing onto a muted, headless Spotify Web Player. To Discord, Airbuds, and Instagram Notes, it looks like regular Spotify activity—so your friends can finally see what you're actually listening to.
 
----
-
 ## What It Does
 
 * **Instant Sync via Connect API:** Instead of clicking around the web UI, it controls playback directly through the Spotify Connect API so tracks update immediately.
@@ -13,8 +11,6 @@ It keeps an eye on your Last.fm scrobbles in real time and mirrors whatever you'
 * **Headless Session Keep-Alive:** Authenticates using your `sp_dc` cookie, bypassing bot checks, CAPTCHAs, and datacenter IP blocks.
 * **Silent & Ad-Free:** Drops Spotify audio ads on the wire so they never interrupt your tracking loop.
 * **Simple Dashboard:** Includes an Airbuds-inspired web UI to manage settings, check sync status, and update credentials.
-
----
 
 ## Supported Social Integrations
 
@@ -24,8 +20,6 @@ Because AirScrobble updates your real Spotify account presence, anything reading
 * **Discord** (Rich Presence)
 * **Instagram Notes** (Spotify status)
 * Any third-party widget or bot connected to your Spotify profile
-
----
 
 ## Getting Started
 
@@ -66,8 +60,6 @@ docker compose up -d
 
 ```
 
----
-
 ### 2. Grab Your Spotify Cookie (`sp_dc`)
 
 Spotify blocks standard login requests coming from server IPs, so AirScrobble uses your session cookie to connect:
@@ -77,8 +69,6 @@ Spotify blocks standard login requests coming from server IPs, so AirScrobble us
 3. Go to the **Application** tab, expand **Cookies**, and select `[https://open.spotify.com](https://open.spotify.com)`.
 4. Find the cookie named **`sp_dc`** and copy its value.
 5. Open your AirScrobble dashboard at `http://<your-server-ip>:5000`, head to **Settings**, and paste the cookie in.
-
----
 
 ## How It Works Under the Hood
 
@@ -108,8 +98,6 @@ Tidal / Deezer / YouTube Music / Plex
 ```
 
 Inside the container, a background Python worker regularly polls the Last.fm API for your active track. When a new song starts, it issues an API call to a headless Chromium instance (driven by Playwright) that runs a persistent, muted Spotify Web Player session. Spotify registers the playback as active, and your linked social apps update in tandem.
-
----
 
 ## Contributing & Development
 
