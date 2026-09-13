@@ -1,124 +1,116 @@
 # AirScrobble
 
-AirScrobble bridges music platforms that don't support Airbuds (Tidal, Deezer, YouTube Music, etc.) to Airbuds by way of Spotify. It works by watching what you're currently playing via Last.fm scrobbles and mirroring that playback onto a muted, headless Spotify Web Player running inside a Docker container. Airbuds sees the Spotify activity, and your friends see what you're actually listening to.
+If you listen to music on Tidal, Deezer, YouTube Music, Plex, or local files, you’re usually locked out of social features built exclusively for Spotify. AirScrobble bridges that gap.
 
-## How it works
+It keeps an eye on your Last.fm scrobbles in real time and mirrors whatever you're playing onto a muted, headless Spotify Web Player. To Discord, Airbuds, and Instagram Notes, it looks like regular Spotify activity—so your friends can finally see what you're actually listening to.
 
-The core of AirScrobble is a polling loop that runs alongside a headless Chromium browser.
+---
 
-Every few seconds, it hits the Last.fm API and checks if your account has a track with the `nowplaying` flag set. Most music players that support scrobbling will set this flag in real time, so it doesn't matter where the scrobble originates from — Tidal, Deezer, Plex, whatever. If Last.fm says you're playing something, AirScrobble knows about it.
+## What It Does
 
-When a new track shows up, AirScrobble takes that track name and artist, navigates the headless Spotify Web Player to the search page, and clicks play on the first result. Spotify is muted at the browser level (`--mute-audio` flag on Chromium), so nothing actually plays out of your speakers. But as far as Spotify's servers are concerned, you're listening to that track. Airbuds picks up the Spotify activity and shows it on your feed.
+* **Instant Sync via Connect API:** Instead of clicking around the web UI, it controls playback directly through the Spotify Connect API so tracks update immediately.
+* **Smart Local File Fallbacks:** Listening to unreleased demos or bandcamp tracks missing from Spotify? AirScrobble automatically generates `spotify:local` URIs so your presence still updates.
+* **Headless Session Keep-Alive:** Authenticates using your `sp_dc` cookie, bypassing bot checks, CAPTCHAs, and datacenter IP blocks.
+* **Silent & Ad-Free:** Drops Spotify audio ads on the wire so they never interrupt your tracking loop.
+* **Simple Dashboard:** Includes an Airbuds-inspired web UI to manage settings, check sync status, and update credentials.
 
-When you stop playing music and the `nowplaying` flag drops off, AirScrobble pauses Spotify.
+---
 
-The browser session is persistent. Login cookies are cached in a Docker volume, so you authenticate with Spotify once and it sticks across container restarts. No repeated logins, no CAPTCHAs on every boot.
+## Supported Social Integrations
 
-## Setup
+Because AirScrobble updates your real Spotify account presence, anything reading Spotify playback will pick it up automatically:
+
+* **Airbuds**
+* **Discord** (Rich Presence)
+* **Instagram Notes** (Spotify status)
+* Any third-party widget or bot connected to your Spotify profile
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-- A Spotify account (free or premium)
-- A Last.fm account with an [API key](https://www.last.fm/api/account/create)
-- Your music player configured to scrobble to Last.fm
-- Docker, on whatever machine you want to run this on
+1. A Spotify account (Free or Premium).
+2. A [Last.fm](https://www.last.fm/api/account/create) account and API key.
+3. Your media player configured to scrobble tracks to Last.fm.
+4. Docker installed on your server or local machine.
 
-### Deploy with Portainer
+### 1. Run with Docker Compose
 
-Copy the contents of `portainer-stack.yml` into Portainer under Stacks > Add Stack > Web Editor. Hit deploy. That's it.
+Save this to a `docker-compose.yml` file:
 
-The default dashboard login is `admin` / `airscrobble`. You can change this by editing the environment variables in the stack before deploying.
+```yaml
+services:
+  airscrobble:
+    image: ghcr.io/kashcotton/airscrobble:latest
+    container_name: airscrobble
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - airscrobble_data:/app/data
+    environment:
+      - ADMIN_USER=admin
+      - ADMIN_PASS=airscrobble
 
-### Deploy with Docker Compose
-
-```
-git clone https://github.com/kashcotton/airscrobble.git
-cd airscrobble
-docker compose up -d --build
-```
-
-No `.env` file is required. The defaults work out of the box.
-
-### First run
-
-Once the container is up, open `http://<your-host>:5000` in a browser. Log in with the dashboard credentials (`admin` / `airscrobble` by default), then go to Settings and enter:
-
-- Your Last.fm API key and username
-- Your Spotify email and password
-
-Hit save. The relay loop starts automatically. Go back to the dashboard to see the current status.
-
-You can test your Last.fm credentials from the settings page before saving. There's a "Test connection" link under the Last.fm fields.
-
-### Spotify authentication
-
-On the first run, AirScrobble will automate the Spotify login flow using the credentials you provide in settings. The session cookies get cached in a Docker volume, so subsequent restarts skip the login entirely.
-
-If Spotify presents a CAPTCHA during the first automated login, you'll need to log in manually once. To do this, temporarily change `headless=True` to `headless=False` in `app.py` (in the `launch` method), run the container with a display attached, complete the CAPTCHA, then switch back to headless. The session persists.
-
-## Architecture
+volumes:
+  airscrobble_data:
 
 ```
-Tidal / Deezer / etc.
-        |
-    [scrobbles]
-        |
-     Last.fm API
-        |
-    [polls every N seconds]
-        |
-   AirScrobble container
-        |
-    [headless Chromium]
-        |
-   Spotify Web Player (muted)
-        |
-    [detects playback]
-        |
-      Airbuds
-```
 
-The container runs two things:
+Spin it up:
 
-1. A Flask web server on port 5000 that serves the dashboard and settings UI
-2. A background thread running the relay loop (Last.fm polling + Playwright browser automation)
-
-They communicate through a SQLite database. The relay loop writes the current status (idle, syncing, error, track info) to a single-row table. The dashboard reads it via an API endpoint that the frontend polls every 3 seconds.
-
-All configuration (Last.fm credentials, Spotify credentials, polling interval) is stored in the same SQLite database and managed through the web UI. Environment variables are only used for dashboard login credentials and the Flask session secret.
-
-## Files
+```bash
+docker compose up -d
 
 ```
-.
-├── app.py                          # Flask server + relay loop
-├── templates/
-│   ├── base.html                   # Shared layout
-│   ├── login.html                  # Login page
-│   ├── index.html                  # Dashboard
-│   └── settings.html               # Settings page
-├── Dockerfile
-├── docker-compose.yml              # For local dev / direct Docker Compose
-├── portainer-stack.yml             # For Portainer (references GHCR image)
-├── .github/workflows/
-│   └── docker-publish.yml          # CI: builds + pushes image to GHCR
-├── requirements.txt
-├── .env.example
-└── .gitignore
+
+---
+
+### 2. Grab Your Spotify Cookie (`sp_dc`)
+
+Spotify blocks standard login requests coming from server IPs, so AirScrobble uses your session cookie to connect:
+
+1. Open an Incognito window in Chrome and sign in to [open.spotify.com](https://open.spotify.com).
+2. Press `F12` (or right-click and choose **Inspect**) to open Developer Tools.
+3. Go to the **Application** tab, expand **Cookies**, and select `[https://open.spotify.com](https://open.spotify.com)`.
+4. Find the cookie named **`sp_dc`** and copy its value.
+5. Open your AirScrobble dashboard at `http://<your-server-ip>:5000`, head to **Settings**, and paste the cookie in.
+
+---
+
+## How It Works Under the Hood
+
+```text
+Tidal / Deezer / YouTube Music / Plex
+                 │
+           (Scrobbles)
+                 ▼
+            Last.fm API
+                 │
+          (Polls status)
+                 ▼
+       AirScrobble Container
+  ┌───────────────────────────────┐
+  │ • Flask Web Dashboard (:5000) │
+  │ • Background Sync Worker      │
+  │ • Headless Chromium Instance  │
+  └──────────────┬────────────────┘
+                 │
+     Spotify Connect API (PUT /play)
+                 ▼
+    Muted Spotify Web Player SDK
+                 │
+                 ▼
+   Discord / Airbuds / Instagram Notes
+
 ```
 
-## CI
+Inside the container, a background Python worker regularly polls the Last.fm API for your active track. When a new song starts, it issues an API call to a headless Chromium instance (driven by Playwright) that runs a persistent, muted Spotify Web Player session. Spotify registers the playback as active, and your linked social apps update in tandem.
 
-Every push to `main` triggers a GitHub Actions workflow that builds the Docker image and pushes it to `ghcr.io/kashcotton/airscrobble:latest`. The workflow uses `GITHUB_TOKEN` for authentication, so there's nothing to configure.
+---
 
-After the first successful workflow run, go to the repo's Packages tab, click the package, go to Package Settings, and set the visibility to Public. Otherwise Portainer won't be able to pull the image without authentication.
+## Contributing & Development
 
-To update a running Portainer deployment: click Recreate on the stack with "Re-pull image" enabled.
-
-## Notes
-
-- The polling interval defaults to 10 seconds. You can change it in settings. Minimum is 5 seconds.
-- The relay loop has exponential backoff for errors (5 seconds up to 2 minutes). If the browser crashes or the network drops, it recovers on its own.
-- The container is set to `restart: unless-stopped`, so it comes back after reboots.
-- The dashboard is dark mode. There is no light mode.
-
+Images are automatically built and published to GitHub Container Registry (`ghcr.io/kashcotton/airscrobble:latest`) on every push to `main`. Issues, pull requests, and feedback are always welcome!
