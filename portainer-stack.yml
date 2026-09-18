@@ -1,23 +1,16 @@
-# ─────────────────────────────────────────────────────────────
-#  AirScrobble — Portainer Stack
-#
-#  Paste this into Portainer → Stacks → Add Stack → Web Editor
-#  Then hit "Deploy the stack."
-#
-#  Default dashboard login:  admin / airscrobble
-#  All service config (Last.fm, Spotify) is done in the web UI.
-# ─────────────────────────────────────────────────────────────
-
 services:
   airscrobble:
     image: ghcr.io/kashcotton/airscrobble:latest
     container_name: airscrobble
     restart: unless-stopped
+    shm_size: "2gb"
     ports:
       - "5000:5000"
     volumes:
       - browser_data:/app/browser_data
       - app_data:/app/data
+      - local_files:/app/local_files
+      - spotify_config:/root/.config/spotify
     environment:
       - DASHBOARD_USERNAME=admin
       - DASHBOARD_PASSWORD=airscrobble
@@ -28,8 +21,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 30s
 
 volumes:
   browser_data:
   app_data:
+  local_files:
+  spotify_config:

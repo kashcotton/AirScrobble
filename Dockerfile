@@ -2,21 +2,48 @@ FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
 
 WORKDIR /app
 
-# Install Python dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xvfb \
+    pulseaudio \
+    dbus \
+    dbus-x11 \
+    xdotool \
+    ffmpeg \
+    gnupg2 \
+    libglib2.0-0 \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libxkbcommon0 \
+    && (curl -sS https://download.spotify.com/debian/pubkey_6224F9941A8AA6D1.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/spotify.gpg \
+        || curl -sS https://download.spotify.com/debian/pubkey_C85668DF69375001.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/spotify.gpg) \
+    && echo "deb http://repository.spotify.com stable non-free" > /etc/apt/sources.list.d/spotify.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends spotify-client \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Google Chrome for Widevine DRM support (required by Spotify)
 RUN playwright install chrome
 RUN playwright install-deps chrome
 
-# Copy application code
 COPY . .
 
-# Create directories for persistent data
-RUN mkdir -p /app/browser_data /app/data
+RUN mkdir -p /app/browser_data /app/data /app/local_files /root/.config/spotify
 
 EXPOSE 5000
 
-CMD ["python", "app.py"]
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
+ENTRYPOINT ["/entrypoint.sh"]

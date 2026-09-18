@@ -5,11 +5,14 @@ services:
     build: .
     container_name: airscrobble
     restart: unless-stopped
+    shm_size: "2gb"
     ports:
       - "5000:5000"
     volumes:
       - ./browser_data:/app/browser_data
       - ./data:/app/data
+      - ./local_files:/app/local_files
+      - ./spotify_config:/root/.config/spotify
     environment:
       - DASHBOARD_USERNAME=${DASHBOARD_USERNAME:-admin}
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-airscrobble}
@@ -20,4 +23,4 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 30s

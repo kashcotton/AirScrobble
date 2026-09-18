@@ -1,6 +1,8 @@
 .env
 browser_data/
 data/
+local_files/
+spotify_config/
 __pycache__/
 *.pyc
 *.pyo
